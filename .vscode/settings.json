@@ -1,0 +1,11 @@
+{
+  "files.associations": {
+    "*.svelte": "html",
+    "*.component": "javascript",
+    "iostream": "cpp",
+    "ios": "cpp",
+    "vector": "cpp",
+    "__functional_03": "cpp",
+    "functional": "cpp"
+  }
+}
