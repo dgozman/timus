@@ -92,46 +92,72 @@ template<typename T> bool rmx(T& value, const T& candidate) {
 
 void solve(Input& in, Output& out);
 int main() {
-  ifstream fin("input.txt");
-  Input in(fin);
-  ofstream fout("output.txt");
-  Output out(fout);
-  // Input in(cin);
-  // Output out(cout);
+  // ifstream fin("input.txt");
+  // Input in(fin);
+  // ofstream fout("output.txt");
+  // Output out(fout);
+  Input in(cin);
+  Output out(cout);
   solve(in, out);
   return 0;
 }
 
 void solve(Input& in, Output& out) {
-  int n = in.ni();
-  vec<int> a = in.nvi(n);
-
-  int P = a[n - 1];
-  int N = n;
-  for (int i = n - 2; i >= 0; i--) {
-    int K = ((n - 1) - P % (n - 1)) % (n - 1);
-    P = (N * K + P) / (n - 1) * n + a[i];
-    N = N * n;
+  int a = in.ni();
+  int b = in.ni();
+  int n = in.ni() / 2;
+  vec<int> t1(n * 2);
+  vec<int> t2(n * 2);
+  int ct1 = 0;
+  int ct2 = 0;
+  for (int i = 0; i < 2 * n; i++) {
+    int t = in.ni();
+    int d = in.ni();
+    if (d == 0)
+      t1[ct1++] = t;
+    else
+      t2[ct2++] = t;
   }
-  out(P == 0 ? N : P);
+
+  if (ct1 != n || ct2 != n) {
+    out("Liar");
+    return;
+  }
+
+  vec<int> p1(n, -1);
+  vec<int> p2(n, -1);
+  vec<int> visited(n);
+
+  function<bool(int)> dfs = [&] (int u) {
+    visited[u] = 1;
+    for (int v = 0; v < n; v++) {
+      if (t2[v] > t1[u] && (t2[v] <= t1[u] + b || t2[v] >= t1[u] + a)) {
+        if (p2[v] == -1 || !visited[p2[v]] && dfs(p2[v])) {
+          p1[u] = v;
+          p2[v] = u;
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  int total = 0;
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++)
+      visited[j] = 0;
+    for (int j = 0; j < n; j++) {
+      if (p1[j] == -1 && !visited[j]) {
+        if (dfs(j))
+          total++;
+      }
+    }
+  }
+  if (total == n) {
+    out("No reason");
+    for (int i = 0; i < n; i++)
+      out(t1[i], t2[p1[i]]);
+  } else {
+    out("Liar");
+  }
 }
-
-
-/*
-
-A - matching
-B - original
-C - new original
-
-length n
-
-
-    matching count:
-A: 0000
-B: 0011
-C: 0101
-   aa
-   b  b
-   c c
-
-*/
