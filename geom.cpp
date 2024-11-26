@@ -1,11 +1,8 @@
+// long double section
 
 using D = long double;
 const D eps = 1e-10;
 const D PI = 3.1415926535897932384626433832795028841971;
-
-D sqr_(D x) {
-  return x * x;
-}
 
 D sqrt_(D x) {
   if (x > -eps && x < 0)
@@ -13,38 +10,167 @@ D sqrt_(D x) {
   return sqrt(x);
 }
 
+D abs_(D x) {
+  return fabsl(x);
+}
+
+bool less_(D x, D y) {
+  return x <= y - eps;
+}
+
+bool less_eq_(D x, D y) {
+  return x < y + eps;
+}
+
+bool eq_(D x, D y) {
+  return fabsl(x - p.x) < eps;
+}
+
+// rational section
+
+i64 gcd_(i64 a, i64 b) {
+  a = abs(a);
+  b = abs(b);
+  while (b > 0) {
+    i64 c = a % b;
+    a = b;
+    b = c;
+  }
+  return a;
+}
+
+struct Rat {
+  i64 p, q;
+  Rat(): p(0), q(1) {}
+  Rat(i64 x): p(x), q(1) {}
+  Rat(i64 np, i64 nq): p(np), q(nq) {
+    if (q == 0)
+      panic();
+    if (q < 0) {
+      p = -p;
+      q = -q;
+    }
+    i64 g = gcd_(p, q);
+    p /= g;
+    q /= g;
+  }
+
+  Rat abs() const {
+    return Rat(abs(p), q);
+  }
+
+  Rat operator-() const {
+    return Rat(-p, q);
+  }
+  Rat operator+(const Rat& other) const {
+    return Rat(p * other.q + q * other.p, q * other.q);
+  }
+  Rat operator-(const Rat& other) const {
+    return Rat(p * other.q - q * other.p, q * other.q);
+  }
+  Rat operator*(i64 d) const {
+    return Rat(p * d, q);
+  }
+  Rat operator/(i64 d) const {
+    return Rat(p, q * d);
+  }
+  Rat operator*(const Rat& other) const {
+    return Rat(p * other.p, q * other.q);
+  }
+  Rat operator/(const Rat& other) const {
+    return Rat(p * other.q, q * other.p);
+  }
+  bool operator<(const Rat& other) const {
+    return p * other.q < q * other.p;
+  }
+  bool operator>(const Rat& other) const {
+    return p * other.q > q * other.p;
+  }
+  bool operator==(const Rat& other) const {
+    return p == other.p && q == other.q;
+  }
+  bool operator<=(const Rat& other) const {
+    return p * other.q <= q * other.p;
+  }
+  bool operator>=(const Rat& other) const {
+    return p * other.q >= q * other.p;
+  }
+};
+
+Rat sqrt_(Rat x) {
+  throw 42;
+}
+
+Rat abs_(Rat x) {
+  return x.abs();
+}
+
+bool less_(Rat x, Rat y) {
+  return x < y;
+}
+
+bool less_eq_(Rat x, Rat y) {
+  return x <= y;
+}
+
+bool eq_(Rat x, Rat y) {
+  return x == y;
+}
+
+
+// Change here!!!
+using Num = D;
+const Num zero = 0;
+const Num one = 1;
+// End of change here!!!
+
+
+// common section
+
+Num sqr_(Num x) {
+  return x * x;
+}
+
+bool more_(Num x, Num y) {
+  return !less_eq_(x, y);
+}
+
+bool more_eq_(Num x, Num y) {
+  return !less_(x, y);
+}
+
 struct Point {
-  D x, y;
-  Point(): x(0), y(0) {}
-  Point(D x, D y): x(x), y(y) {}
+  Num x, y;
+  Point(): x(zero), y(zero) {}
+  Point(Num x, Num y): x(x), y(y) {}
   Point operator-(const Point& other) const {
     return Point(x - other.x, y - other.y);
   }
   Point operator+(const Point& other) const {
     return Point(x + other.x, y + other.y);
   }
-  Point operator*(const D& d) const {
+  Point operator*(const Num& d) const {
     return Point(x * d, y * d);
   }
-  Point operator/(const D& d) const {
+  Point operator/(const Num& d) const {
     return Point(x / d, y / d);
   }
   bool operator<(const Point& p) const {
-    return x <= p.x - eps || (fabs(x - p.x) < eps && y <= p.y - eps);
+    return less_(x, p.x) || (eq_(x, p.x) && less_(y, p.y));
   }
-  Point rotate(D cosa, D sina) const {
+  Point rotate(Num cosa, Num sina) const {
     return Point(x * cosa - y * sina, y * cosa + x * sina);
   }
-  Point rotate(D ang) const {
+  Point rotate(Num ang) const {
     return rotate(cos(ang), sin(ang));
   }
-  D norm2() const {
+  Num norm2() const {
     return sqr_(x) + sqr_(y);
   }
-  D norm() const {
+  Num norm() const {
     return sqrt_(norm2());
   }
-  D dot(const Point& p) const {
+  Num dot(const Point& p) const {
     return x * p.y - y * p.x;
   }
   void out(Output& out) const {
@@ -53,20 +179,20 @@ struct Point {
 };
 
 struct Range {
-  D a, b;
-  Range(): a(0), b(0) {}
-  Range(D l, D r): a(min(l, r)), b(max(l, r)) {}
+  Num a, b;
+  Range(): a(zero), b(zero) {}
+  Range(Num l, Num r): a(min(l, r)), b(max(l, r)) {}
   bool contains_inclusive(D x) const {
-    return (x > a - eps) && (x < b + eps);
+    return less_eq_(a, x) && less_eq_(x, b);
   }
   bool contains_exclusive(D x) const {
-    return (x > a + eps) && (x < b - eps);
+    return less_(a, x) && less_(x, b);
   }
 };
 
 struct Line {
-  D a, b, c;
-  Line(): a(1), b(1), c(0) {}
+  Num a, b, c;
+  Line(): a(one), b(one), c(zero) {}
   Line(D a, D b, D c): a(a), b(b), c(c) {}
   Line(const Point& p1, const Point& p2) {
     a = p1.y - p2.y;
@@ -76,41 +202,41 @@ struct Line {
   void out(Output& out) const {
     out.println(a, b, c);
   }
-  D apply(const Point& p) const {
+  Num apply(const Point& p) const {
     return a * p.x + b * p.y + c;
   }
   bool contains(const Point& p) const {
-    return fabs(apply(p)) < eps;
+    return eq_(apply(p), zero);
   }
-  D norm() const {
+  Num norm() const {
     return sqrt_(norm2());
   }
-  D norm2() const {
+  Num norm2() const {
     return sqr_(a) + sqr_(b);
   }
   Line shift_to(const Point& to, D d) const {
-    return apply(to) < 0 ? Line(a, b, c + d * norm()) : Line(a, b, c - d * norm());
+    return apply(to) < zero ? Line(a, b, c + d * norm()) : Line(a, b, c - d * norm());
   }
   Line shift_from(const Point& from, D d) const {
-    return apply(from) > 0 ? Line(a, b, c + d * norm()) : Line(a, b, c - d * norm());
+    return apply(from) > zero ? Line(a, b, c + d * norm()) : Line(a, b, c - d * norm());
   }
   Point orth(const Point& p) const {
-    D t = -apply(p) / norm2();
+    Num t = -apply(p) / norm2();
     return Point(a, b) * t + p;
   }
   bool same_side_inclusive(const Point& p, const Point& q) const {
-    D pv = apply(p);
-    D qv = apply(q);
-    return (pv > -eps && qv > -eps) || (pv < eps && qv < eps);
+    Num pv = apply(p);
+    Num qv = apply(q);
+    return (less_eq_(zero, pv) && less_eq_(zero, qv)) || (less_eq_(pv, zero) && less_eq_(qv, zero));
   }
   bool same_side_exclusive(const Point& p, const Point& q) const {
-    D pv = apply(p);
-    D qv = apply(q);
-    return (pv > eps && qv > eps) || (pv < -eps && qv < -eps);
+    Num pv = apply(p);
+    Num qv = apply(q);
+    return (less_(zero, pv) && less_(zero, qv)) || (less_(pv, zero) && less_(qv, zero));
   }
   bool intersect(const Line& line, Point& result) const {
-    D d = a * line.b - b * line.a;
-    if (fabs(d) < eps)
+    Num d = a * line.b - b * line.a;
+    if (eq_(d, zero))
       return false;
     result.x = (-c * line.b + b * line.c) / d;
     result.y = (-a * line.c + c * line.a) / d;
@@ -125,12 +251,12 @@ struct Segment {
   Line line() const {
     return Line(p, q);
   }
-  D contains_inclusive(const Point& r) const {
+  bool contains_inclusive(const Point& r) const {
     return line().contains(r) &&
       Range(p.x, q.x).contains_inclusive(r.x) &&
       Range(p.y, q.y).contains_inclusive(r.y);
   }
-  D contains_exclusive(const Point& r) const {
+  bool contains_exclusive(const Point& r) const {
     return line().contains(r) &&
       Range(p.x, q.x).contains_exclusive(r.x) &&
       Range(p.y, q.y).contains_exclusive(r.y);
@@ -141,7 +267,7 @@ struct Segment {
       return o;
     return (p - r).norm2() < (q - r).norm2() ? p : q;
   }
-  D distance(const Point& r) const {
+  Num distance(const Point& r) const {
     return (r - closest(r)).norm();
   }
   bool intersect_inclusive(const Segment& s, Point& result) const {
@@ -153,18 +279,18 @@ struct Segment {
 
 struct Circle {
   Point c;
-  D r;
-  Circle(): r(0) {}
+  Num r;
+  Circle(): r(zero) {}
   Circle(const Point& c, D r): c(c), r(r) {}
   Circle(D x, D y, D r): c(x, y), r(r) {}
   void out(Output& out) const {
     out.println(c.x, c.y, r);
   }
   bool intersect(const Line& line, Segment& result) const {
-    D norm2 = line.norm2();
-    D t = -line.apply(c) / norm2;
-    D r2 = r * r - t * t * norm2;
-    if (r2 < -eps)
+    Num norm2 = line.norm2();
+    Num t = -line.apply(c) / norm2;
+    Num r2 = r * r - t * t * norm2;
+    if (less_(r2, zero))
       return false;
     r2 = sqrt_(r2 / norm2);
     Point p(c.x + line.a * t, c.y + line.b * t);
@@ -175,11 +301,11 @@ struct Circle {
     return true;
   }
   bool intersect(const Circle& circle, Segment& result) const {
-    D la = 2 * (circle.c.x - c.x);
-    D lb = 2 * (circle.c.y - c.y);
-    if (fabs(la) < eps && fabs(lb) < eps)
+    Num la = 2 * (circle.c.x - c.x);
+    Num lb = 2 * (circle.c.y - c.y);
+    if (eq_(la, zero) && eq_(lb, zero))
       return false;
-    D lc = sqr_(circle.r) - sqr_(r) + sqr_(c.x) - sqr_(circle.c.x) + sqr_(c.y) - sqr_(circle.c.y);
+    Num lc = sqr_(circle.r) - sqr_(r) + sqr_(c.x) - sqr_(circle.c.x) + sqr_(c.y) - sqr_(circle.c.y);
     return intersect(Line(la, lb, lc), result);
   }
 };
@@ -222,17 +348,17 @@ struct Polygon {
     close();
   }
 
-  D convex_area() const {
+  Num convex_area() const {
     ensure_closed();
-    D area = 0;
+    Num area = 0;
     for (int i = 0; i < n; i++)
       area += p[i].dot(p[i + 1]);
-    return fabs(area) / 2;
+    return abs_(area) / 2;
   }
   bool convex_contains_inclusive(const Point& q) const {
     ensure_closed();
     if (empty())
-      return 0;
+      return false;
     Point center;
     for (int i = 0; i < n; i++)
       center = center + p[i];
@@ -271,14 +397,14 @@ struct Polygon {
     for (Point& ps : points)
       mn = ps < mn ? ps : mn;
     sort(points.begin(), points.end(), [&mn](const Point& a, const Point& b) -> bool {
-      if (fabs(a.x - mn.x) < eps && fabs(a.y - mn.y) < eps)
+      if (eq_(a.x, mn.x) && eq_(a.y, mn.y))
         return true;
-      if (fabs(b.x - mn.x) < eps && fabs(b.y - mn.y) < eps)
+      if (eq_(b.x, mn.x) && eq_(b.y, mn.y))
         return false;
-      D dot = (a - mn).dot(b - mn);
-      if (dot > eps)
+      Num dot = (a - mn).dot(b - mn);
+      if (more_(dot, zero))
         return true;
-      if (dot < eps)
+      if (less_(dot, zero))
         return false;
       return (a - mn).norm2() < (b - mn).norm2();
     });
@@ -287,7 +413,7 @@ struct Polygon {
     for (int i = 0; i < points.size(); i++) {
       Point& a = result.p[result.p.size() - 1];
       Point& b = points[i];
-      if (fabs(a.x - b.x) > eps || fabs(a.y - b.y) > eps)
+      if (!eq_(a.x, b.x) || !eq_(a.y, b.y))
         result.add(b);
     }
     return result.close();
