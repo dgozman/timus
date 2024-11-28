@@ -75,8 +75,7 @@ template<typename T> vec3d<T> newVec3d(int n, int m, int k, const T& init) {
 }
 
 void panic() {
-  int z = 0;
-  z = 1 / z;
+  throw 42;
 }
 
 template<typename T> bool rmn(T& value, const T& candidate) {
@@ -101,229 +100,336 @@ int main() {
   return 0;
 }
 
-int dot(int x1, int y1, int x2, int y2) {
-  return x1 * y2 - x2 * y1;
-}
-
-int cross(int x1, int y1, int x2, int y2) {
-  return x1 * x2 + y1 * y2;
-}
-
-int dist(int x1, int y1, int x2, int y2) {
-  return (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);
-}
-
-bool inside(int x1, int y1, int x2, int y2, int x, int y) {
-  int v = dot(x1, y1, x2, y2);
-  if (v >= 0) {
-    return dot(x1, y1, x, y) >= 0 && dot(x2, y2, x, y) >= 0;
-  } else {
-    return !(dot(x1, y1, x, y) < 0 && dot(x2, y2, x, y) < 0);
-  }
-}
-
 void solve(Input& in, Output& out) {
   int n = in.ni();
-  vec<int> x(n * 2), y(n * 2);
+  vec<i64> px(n * 2), py(n * 2);
   for (int i = 0; i < n; i++) {
-    x[i] = in.ni();
-    y[i] = in.ni();
+    px[i] = in.ni();
+    py[i] = in.ni();
   }
-  int xs = in.ni();
-  int ys = in.ni();
-  int xt = in.ni();
-  int yt = in.ni();
+
+  i64 xs = in.ni();
+  i64 ys = in.ni();
+  i64 xf = in.ni();
+  i64 yf = in.ni();
 
   auto area = [&] () {
-    int a = 0;
+    i64 a = 0;
     for (int i = 0; i < n; i++)
-      a += x[i] * y[i + 1] - x[i + 1] * y[i];
+      a += px[i] * py[i + 1] - px[i + 1] * py[i];
     return a;
+  };
+
+  auto cross4 = [&](i64 x1, i64 y1, i64 x2, i64 y2) {
+    return x1 * y2 - x2 * y1;
   };
 
   bool reversed = area() < 0;
   if (reversed) {
+    // out ("reversed");
     for (int i = 0; i < n - 1 - i; i++) {
-      int tmp = x[i]; x[i] = x[n - 1 - i]; x[n - 1 - i] = tmp;
-      tmp = y[i]; y[i] = y[n - 1 - i]; y[n - 1 - i] = tmp;
+      i64 tmp = px[i]; px[i] = px[n - 1 - i]; px[n - 1 - i] = tmp;
+      tmp = py[i]; py[i] = py[n - 1 - i]; py[n - 1 - i] = tmp;
     }
   }
 
   for (int i = 0; i < n; i++) {
-    x[n + i] = x[i];
-    y[n + i] = y[i];
+    px[n + i] = px[i];
+    py[n + i] = py[i];
   }
 
   int pow2 = 64;
-
   int m = (n + pow2 - 1) / pow2;
   u64 one = 1;
-  vec2d<u64> to_right = newVec2d(n, m, (u64) 0);
-  vec2d<u64> in_right = newVec2d(n, m, (u64) 0);
+  // both ends of the segment are counter-clockwise when rotating j against i
+  vec2d<u64> mask_ccw = newVec2d(n, m, (u64)0);
+  // both ends of the segment are clockwise when rotating j against i
+  vec2d<u64> mask_cw = newVec2d(n, m, (u64)0);
 
-  vec<int> index(n);
+  auto maybe_mark = [&](int i, int j) {
+    // out ("====== maybe_mark", i, j);
+    i64 dot1 = (px[j] - px[i]) * (ys - py[i]) - (xs - px[i]) * (py[j] - py[i]);
+    i64 dot2 = (px[j] - px[i]) * (yf - py[i]) - (xf - px[i]) * (py[j] - py[i]);
+    if (dot1 > 0 && dot2 > 0) {
+      // out ("mark", i, j);
+      mask_ccw[i][j / pow2] |= one << (j % pow2);
+      mask_cw[j][i / pow2] |= one << (i % pow2);
+    }
+  };
+
+  vec<int> p(n);
   for (int i = 0; i < n; i++)
-    index[i] = i;
+    p[i] = i;
+  vec<i64> x(2 * n), y(2 * n);
 
-  for (int i = 0; i < n; i++) {
-    int pi = (i + n - 1) % n;
-    auto is_up = [&] (int j) {
-      return (y[j] - y[i] > 0) || (y[j] - y[i] == 0 && x[j] - x[i] >= 0);
-    };
+  for (int c = 0; c < n; c++) {
+    for (int i = 0; i < 2 * n; i++) {
+      x[i] = px[i] - px[c];
+      y[i] = py[i] - py[c];
+    }
 
-    auto start = [&] (int j) {
-      int v = dot(x[j] - x[i], y[j] - y[i], x[j + 1] - x[i], y[j + 1] - y[i]);
-      if (v)
-        return v > 0 ? j : (j + 1) % n;
-      return dist(x[i], y[i], x[j], y[j]) < dist(x[i], y[i], x[j + 1], y[j + 1]) ? j : (j + 1) % n;
-    };
-
-    sort(index.begin(), index.end(), [&] (int j, int k) -> bool {
-      bool up_j = is_up(j);
-      bool up_k = is_up(k);
-      if (up_j != up_k)
-        return up_j;
-      int v = dot(x[j] - x[i], y[j] - y[i], x[k] - x[i], y[k] - y[i]);
-      if (v)
-        return v > 0;
-      return dist(x[i], y[i], x[j], y[j]) < dist(x[i], y[i], x[k], y[k]);
+    // sort by polar angle relative to the ray c->Oxs
+    sort(p.begin(), p.end(), [&](int a, int b) -> bool {
+      bool a_top = y[a] > 0 || y[a] == 0 && x[a] >= 0;
+      bool b_top = y[b] > 0 || y[b] == 0 && x[b] >= 0;
+      if (a_top && !b_top)
+        return true;
+      if (!a_top && b_top)
+        return false;
+      i64 v = x[a] * y[b] - y[a] * x[b];
+      if (v == 0) {
+        i64 da = x[a] * x[a] + y[a] * y[a];
+        i64 db = x[b] * x[b] + y[b] * y[b];
+        return da < db;
+      }
+      return v > 0;
     });
 
-    if (index[0] != i)
+    if (p[0] != c)
       panic();
 
-    int cur = index[1];
-    auto side_dist = [&] (int j) {
-      int a1 = y[i] - y[cur];
-      int b1 = x[cur] - x[i];
-      int c1 = -(a1 * x[i] + b1 * y[i]);
-      int a2 = y[j] - y[j + 1];
-      int b2 = x[j + 1] - x[j];
-      int c2 = -(a2 * x[j] + b2 * y[j]);
-      int d = a1 * b2 - a2 * b1;
-      if (d == 0) {
-        return dist(x[i], y[i], x[j], y[j]) < dist(x[i], y[i], x[j + 1], y[j + 1]) ?
-          make_pair(x[j] * 1.0, y[j] * 1.0) : make_pair(x[j + 1] * 1.0, y[j + 1] * 1.0);
+    // out ("c", c, "sorted", p);
+
+    auto cross = [&](int i, int j) {
+      return x[i] * y[j] - x[j] * y[i];
+    };
+
+    auto dot = [&](int i, int j) {
+      return x[i] * x[j] + y[i] * y[j];
+    };
+
+    auto norm2 = [&](int i) {
+      return x[i] * x[i] + y[i] * y[i];
+    };
+
+    auto same_ang = [&](int i, int j) {
+      // two points are on the same ray starting at "c"
+      return cross(i, j) == 0 && dot(i, j) >= 0;
+    };
+
+    int cur = p[1];
+    auto sides_comp = [&](int i, int j) {
+      // compare two sides by their intersection point with the ray towards "cur"
+      if (i == j)
+        return false;
+
+      i64 a1 = y[i] - y[i + 1];
+      i64 b1 = x[i + 1] - x[i];
+      i64 c1 = -(a1 * x[i] + b1 * y[i]);
+      i64 d1 = a1 * x[cur] + b1 * y[cur];
+      if (d1 < 0) {
+        a1 = -a1;
+        b1 = -b1;
+        c1 = -c1;
+        d1 = -d1;
       }
-      double xx = (-c1 * b2 + b1 * c2) * 1.0 / d;
-      double yy = (-a1 * c2 + c1 * a2) * 1.0 / d;
-      return make_pair(xx, yy);
+
+      i64 a2 = y[j] - y[j + 1];
+      i64 b2 = x[j + 1] - x[j];
+      i64 c2 = -(a2 * x[j] + b2 * y[j]);
+      i64 d2 = a2 * x[cur] + b2 * y[cur];
+      if (d2 < 0) {
+        a2 = -a2;
+        b2 = -b2;
+        c2 = -c2;
+        d2 = -d2;
+      }
+
+      // ray is: k * x[cur], k * y[cur], k >= 0
+      // a1 * k * x[cur] + b1 * k * y[cur] + c1 = 0
+      // k1 = -c1 / (a1 * x[cur] + b1 * y[cur])
+      // k2 = -c2 / (a2 * x[cur] + b2 * y[cur])
+      // k1 < k2    <->    -c1/d1 < -c2/d2    <->    c1*d2 > c2*d1
+
+      // one intersection is closer to the origin
+      if (c1 * d2 != c2 * d1)
+        return c1 * d2 > c2 * d1;
+
+      // pick the closest end on the 0->cur ray for each side
+      int i_closest = i;
+      if (d1 == 0)
+        i_closest = norm2(i) < norm2(i + 1) ? i : i + 1;
+      else
+        i_closest = same_ang(i, cur) ? i : i + 1;
+      int j_closest = j;
+      if (d2 == 0)
+        j_closest = norm2(j) < norm2(j + 1) ? j : j + 1;
+      else
+        j_closest = same_ang(j, cur) ? j : j + 1;
+
+      // perhaps one of them is closer to the origin
+      i64 norm_dist = norm2(i_closest) - norm2(j_closest);
+      if (norm_dist != 0)
+        return norm_dist < 0;
+
+      // when one belongs to the ray "0->cur", the order does not matter as long as it is consistent
+      if (d1 == 0 || d2 == 0)
+        return i < j;
+
+      int i_furthest = i + i + 1 - i_closest;
+      int j_furthest = j + j + 1 - j_closest;
+      // intersecting at the same point, but to the opposite sides of the ray "0->cur"
+      // the order does not matter as long as it is consistent
+      i64 v1 = cross(cur, i_furthest);
+      i64 v2 = cross(cur, j_furthest);
+      if (v1 == 0 || v2 == 0)
+        panic();
+      if ((v1 < 0 && v2 > 0) || (v1 > 0 && v2 < 0))
+        return i < j;
+
+      // intersecting at the same point, to the smae side of the ray "0->cur"
+      // choose the side that goes closer to origin
+      i64 v = cross4(x[j_furthest] - x[j_closest], y[j_furthest] - y[j_closest], x[i_furthest] - x[i_closest], y[i_furthest] - y[i_closest]);
+      if (v1 > 0 && v2 > 0)
+        return v > 0;
+      if (v1 < 0 && v2 < 0)
+        return v < 0;
+      panic();
+      return false;
     };
-    auto sides_comp = [&] (int j, int k) {
-      if (j == k)
-        return false;
-      const double eps = 1e-8;
-      auto pj = side_dist(j);
-      auto pk = side_dist(k);
-      double dj = (pj.first - x[i]) * (pj.first - x[i]) + (pj.second - y[i]) * (pj.second - y[i]);
-      double dk = (pk.first - x[i]) * (pk.first - x[i]) + (pk.second - y[i]) * (pk.second - y[i]);
-      if (dj < dk - eps)
-        return true;
-      if (dk < dj - eps)
-        return false;
-      auto pj2 = make_pair(x[j] + x[j + 1] - pj.first, y[j] + y[j + 1] - pj.second);
-      auto pk2 = make_pair(x[k] + x[k + 1] - pk.first, y[k] + y[k + 1] - pk.second);
-      double v_rel = (pj2.first - pj.first) * (pk2.second - pk.second) - (pk2.first - pk.first) * (pj2.second - pj.second);
-      if (abs(v_rel) < eps)
-        return j < k;
-      double v_or1 = (pj.first - x[i]) * (pj2.second - pj.second) - (pj2.first - pj.first) * (pj.second - y[i]);
-      double v_or2 = (pk.first - x[i]) * (pk2.second - pk.second) - (pk2.first - pk.first) * (pk.second - y[i]);
-      if (v_or1 * v_or2 < -eps)
-        return j < k;
-      if (v_or1 >= 0)
-        return v_rel < 0;
-      return v_rel > 0;
-    };
+    // keep sides (i -> i+1) in the set, so that start<=cur, end>=cur
     set<int, decltype(sides_comp)> sides(sides_comp);
 
-    for (int j = 0; j < n; j++) {
-      if (j == i || j == pi)
-        continue;
-      int a = y[j] - y[j + 1];
-      int b = x[j + 1] - x[j];
-      int c = -(a * x[j] + b * y[j]);
-      if (a == 0) {
-        if (y[j] == y[i] && x[j] >= x[i])
-          sides.insert(j);
-      } else {
-        if (-c * a >= x[i] * a * a && (y[j] - y[i]) * (y[j + 1] - y[i]) <= 0)
-          sides.insert(j);
+    auto is_banned = [&](int i) {
+      return i == c || i == c - 1 || i == c + n - 1;
+    };
+
+    auto intersects_cur = [&](int i) {
+      // first check that cur is between i and i+1
+      bool between1 = cross(i, cur) >= 0 && cross(cur, i + 1) >= 0;
+      bool between2 = cross(i + 1, cur) >= 0 && cross(cur, i) >= 0;
+      if (!between1 && !between2)
+        return false;
+
+      // ray is: k * x[cur], k * y[cur], k >= 0
+      // a * k * x[cur] + b * k * y[cur] + c = 0
+      // k = -c / (a * x[cur] + b * y[cur])
+      i64 a = y[i] - y[i + 1];
+      i64 b = x[i + 1] - x[i];
+      i64 c = -(a * x[i] + b * y[i]);
+      i64 d = a * x[cur] + b * y[cur];
+      if (d != 0)
+        return (-c * d) >= 0;
+      if (c != 0)
+        return false;
+      return same_ang(i, cur) || same_ang(i + 1, cur);
+    };
+
+    for (int i = 0; i < n; i++) {
+      // start with all sides that intersect the ray (c -> Ox)
+      if (intersects_cur(i) && !is_banned(i)) {
+        // out ("inserting initial", i);
+        sides.insert(i);
       }
     }
 
-    int cur_index = 1;
-    while (cur_index < n) {
-      cur = index[cur_index];
-
-      int next_index = cur_index + 1;
-      while (next_index < n) {
-        int next = index[next_index];
-        if (dot(x[next] - x[i], y[next] - y[i], x[cur] - x[i], y[cur] - y[i]) == 0 &&
-            cross(x[next] - x[i], y[next] - y[i], x[cur] - x[i], y[cur] - y[i]) > 0) {
-          next_index++;
-        } else {
-          break;
+    auto check_for_addition = [&](int same_angle, int adjacent) {
+      // out ("check for add", same_angle, adjacent, cross(same_angle, adjacent));
+      // add all sides that start at "cur" angle and go counter-clockwise
+      if (cross(same_angle, adjacent) >= 0) {
+        int start = min(same_angle, adjacent);
+        if (!is_banned(start)) {
+          // out ("inserting", start);
+          sides.insert(start);
         }
       }
+    };
 
-      for (int ind = cur_index; ind < next_index; ind++) {
-        int j = index[ind];
-        if (start(j) == j && (j != i && j != pi))
-          sides.insert(j);
-        int pj = (j + n - 1) % n;
-        if (start(pj) == j && (pj != i && pj != pi))
-          sides.insert(pj);
+    auto check_for_removal = [&](int same_angle, int adjacent) {
+      // remove all sides that go counter-clockwise and end at "cur" angle
+      if (cross(adjacent, same_angle) >= 0) {
+        // out ("removing", min(same_angle, adjacent));
+        sides.erase(min(same_angle, adjacent));
+        // out ("after removing", min(same_angle, adjacent), "size=", sides.size());
+      }
+    };
+
+    auto lies_inside = [&](int i) {
+      // if c->i lies inside the angle between (c-1 -> c) and (c -> c+1), it goes inside the polygon
+      int v = cross(c + 1, c + n - 1);
+      // out ("lies_inside", "c", c, "i", i, "v", v);
+      if (v >= 0)
+        return cross(c + 1, i) >= 0 && cross(i, c + n - 1) >= 0;
+      return !(cross(c + 1, i) < 0 && cross(i, c + n - 1) < 0);
+    };
+
+    for (int index = 1; index < n;) {
+      cur = p[index];
+      // out ("switching cur to", cur);
+
+      int last = index;
+      while (last < n && same_ang(cur, p[last])) {
+        int prev = (p[last] - 1 + n) % n;
+        check_for_addition(prev + 1, prev);
+        check_for_addition(p[last], p[last] + 1);
+        last++;
       }
 
-      int first = sides.begin() == sides.end() ? -1 : *(sides.begin());
-      for (int ind = cur_index; ind < next_index; ind++) {
-        int j = index[ind];
-        if (first == -1 || first == j || (first + 1) % n == j) {
-          if (inside(x[i] - x[pi], y[i] - y[pi], x[i + 1] - x[i], y[i + 1] - y[i], x[j] - x[i], y[j] - y[i])) {
-//            out(i, j);
-            if (dot(x[j] - x[i], y[j] - y[i], xs - x[i], ys - y[i]) > 0 &&
-                dot(x[j] - x[i], y[j] - y[i], xt - x[i], yt - y[i]) > 0) {
-              to_right[i][j / pow2] |= one << (j % pow2);
-              in_right[j][i / pow2] |= one << (i % pow2);
-            }
-          }
-        }
+      // out ("sides.size", sides.size(), "cur", cur);
+      if (sides.empty())
+        panic();
+      // c->cur has no intersections when "cur" is the end of the closest side in the set
+      int first = *sides.begin();
+      bool is_closest = (first % n) == (cur % n) || ((first + 1) % n) == (cur % n);
+      // out ("cur", cur, "first", first, "is_closest", is_closest);
+      if (is_closest && lies_inside(cur))
+        maybe_mark(c, cur);
+
+      last = index;
+      while (last < n && same_ang(cur, p[last])) {
+        int prev = (p[last] - 1 + n) % n;
+        check_for_removal(prev + 1, prev);
+        check_for_removal(p[last], p[last] + 1);
+        last++;
       }
 
-      for (int ind = cur_index; ind < next_index; ind++) {
-        int j = index[ind];
-        if (start(j) != j && (j != i && j != pi))
-          sides.erase(j);
-        int pj = (j + n - 1) % n;
-        if (start(pj) != j && (pj != i && pj != pi))
-          sides.erase(pj);
-      }
+      // out ("sides.size after removal", sides.size(), "cur", cur);
 
-      cur_index = next_index;
+      index = last;
     }
   }
 
+  auto area3 = [&](i64 x1, i64 y1, i64 x2, i64 y2, i64 x3, i64 y3) {
+    return abs(x1 * y2 + x2 * y3 + x3 * y1 - x1 * y3 - x2 * y1 - x3 * y2);
+  };
+
+  auto iniside_triangle = [&](int i, int j, int k, i64 xs, i64 ys) {
+    i64 total = area3(px[i], py[i], px[j], py[j], px[k], py[k]);
+    i64 parts = area3(xs, ys, px[j], py[j], px[k], py[k])
+      + area3(px[i], py[i], xs, ys, px[k], py[k])
+      + area3(px[i], py[i], px[j], py[j], xs, ys);
+    return total == parts;
+  };
+
+  auto found = [&](int i, int j, int k) {
+    if (!iniside_triangle(i, j, k, xs, ys))
+      panic();
+    if (!iniside_triangle(i, j, k, xf, yf))
+      panic();
+
+    if (reversed) {
+      i = n - 1 - i;
+      j = n - 1 - j;
+      k = n - 1 - k;
+    }
+    vec<int> result = { i + 1, j + 1, k + 1 };
+    sort(result.begin(), result.end());
+    out(result);
+  };
+
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
-      u64 bit = (to_right[i][j / pow2] >> (j % pow2)) & 1;
-      if (!bit)
+      if (!((mask_ccw[i][j / pow2] >> (j % pow2)) & one))
         continue;
       for (int chunk = 0; chunk < m; chunk++) {
-        u64 both = to_right[j][chunk] & in_right[i][chunk];
+        u64 both = mask_ccw[j][chunk] & mask_cw[i][chunk];
         if (!both)
           continue;
 
         for (int k_rem = 0; k_rem < pow2; k_rem++) {
-          if ((both >> k_rem) & 1) {
+          if ((both >> k_rem) & one) {
             int k = chunk * pow2 + k_rem;
-
-            if (reversed) {
-              i = n - 1 - i;
-              j = n - 1 - j;
-              k = n - 1 - k;
-            }
-            out(i + 1, j + 1, k + 1);
-//            out(i, j, k);
+            found(i, j, k);
             return;
           }
         }
