@@ -430,3 +430,22 @@ struct Polygon {
     }
   }
 };
+
+
+
+// sort points by polar angle
+    auto compare = [](const pair<i64, i64>& a, const pair<i64, i64>& b) -> bool {
+      bool a_top = a.second > 0 || a.second == 0 && a.first > 0;
+      bool b_top = b.second > 0 || b.second == 0 && b.first > 0;
+      if (a_top && !b_top)
+        return true;
+      if (!a_top && b_top)
+        return false;
+      i64 v = a.first * b.second - a.second * b.first;
+      if (v == 0) {
+        i64 da = a.first * a.first + a.second * a.second;
+        i64 db = b.first * b.first + b.second * b.second;
+        return da < db;
+      }
+      return v > 0;
+    };
