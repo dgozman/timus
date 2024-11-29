@@ -86,47 +86,62 @@ int main() {
   return 0;
 }
 
+using D = long double;
+
 void solve(Input& in, Output& out) {
-  vec<double> x(16);
-  vec<double> y(16);
+  vec<D> x(16);
+  vec<D> y(16);
   for (int i = 0; i < 16; i++) {
-    x[i] = in.next<double>();
-    y[i] = in.next<double>();
+    x[i] = in.next<D>();
+    y[i] = in.next<D>();
   }
 
-  const double R2 = 0.8;
-  const double eps = 1e-8;
+  const D R2 = 0.8;
+  const D eps = 1e-8;
 
   vec<vec<int>> moves(16);
   for (int from = 0; from < 16; from++) {
+    vec<D> angs;
     for (int to = 0; to < 16; to++) {
       if (to == from)
         continue;
-      double xi = x[to] - x[from];
-      double yi = y[to] - y[from];
-      double di = sqrt(xi * xi + yi * yi);
-      double sa = R2 / di;
-      double ca = sqrt(1 - sa * sa);
-      double d = sqrt(xi * xi + yi * yi - R2 * R2);
-
-      auto calc = [&] (double dx, double dy) {
-        int move = 0;
-        for (int j = 0; j < 16; j++) {
-          double xj = x[j] - x[from];
-          double yj = y[j] - y[from];
-          double t = (dx * xj + dy * yj) / (dx * dx + dy * dy);
-          double dist = sqrt((xj - dx * t) * (xj - dx  * t) + (yj - dy * t) * (yj - dy * t));
-          if (dist < R2 + eps && t > -eps)
-            move |= 1 << j;
-        }
-        if (((move >> from) & 1) == 0 || ((move >> to) & 1) == 0)
-          panic();
-        return move;
-      };
-
-      moves[from].push_back(calc((xi * ca - yi * sa) *  d / di, (xi * sa + yi * ca) * d / di));
-      moves[from].push_back(calc((xi * ca + yi * sa) * d / di, (-xi * sa + yi * ca) * d / di));
+      D xi = x[to] - x[from];
+      D yi = y[to] - y[from];
+      D a = atan2(yi, xi);
+      angs.push_back(a);
+      D di = sqrt(xi * xi + yi * yi);
+      D da = asin(R2 / di);
+      angs.push_back(a + da);
+      angs.push_back(a - da);
     }
+    sort(angs.begin(), angs.end());
+
+    set<int> all_moves;
+    auto calc = [&] (D a) {
+      int move = 0;
+      D dx = cos(a);
+      D dy = sin(a);
+      for (int j = 0; j < 16; j++) {
+        D xj = x[j] - x[from];
+        D yj = y[j] - y[from];
+        D t = dx * xj + dy * yj;
+        D dist = sqrt((xj - dx * t) * (xj - dx  * t) + (yj - dy * t) * (yj - dy * t));
+        if (dist < R2 + eps && t > -eps)
+          move |= 1 << j;
+      }
+      if (((move >> from) & 1) == 0)
+        panic();
+      all_moves.insert(move);
+    };
+
+    for (int i = 0; i < angs.size(); i++) {
+      calc(angs[i]);
+      int j = (i + 1) % angs.size();
+      calc((angs[i] + angs[j]) / 2);
+    }
+
+    for (int move : all_moves)
+      moves[from].push_back(move);
   }
 
   vec<int> win(1 << 17, -1);
