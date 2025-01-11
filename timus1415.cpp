@@ -33,6 +33,9 @@ using i32 = int32_t;
 using u32 = uint32_t;
 using i8 = int8_t;
 using u8 = uint8_t;
+using i16 = int16_t;
+using u16 = uint16_t;
+// using uint128_t = __uint128_t;
 
 struct Input {
   Input(istream &in) : in(&in) {}
@@ -50,15 +53,17 @@ struct Output {
   Output(ostream &out) : out(&out) {}
   ostream *out;
   inline void print() {}
+  template<typename T> inline void printOne(const T& v) { *out << v; }
+  template<typename T> inline void printOne(const vec<T>& v) { for (int i = 0; i < v.size(); i++) { if (i) *out << ' '; printOne(v[i]); } }
+  template<typename T> inline void printOne(const vec2d<T>& v) { for (int i = 0; i < v.size(); i++) println(v[i]); }
+  template<typename A, typename B> inline void printOne(const pair<A, B>& pair) { print(pair.first, pair.second); }
   template<typename T, typename...Ts> inline void print(const T &f, const Ts&... args) {
-    *out << f;
+    printOne(f);
     if (sizeof...(args) != 0) { *out << ' '; print(args...); }
   }
   template<typename...Ts> inline void println(const Ts&... args) { print(args...); *out << '\n'; }
-  template<typename T> inline void printVec(const vec<T>& v) { for (int i = 0; i < v.size(); i++) { if (i) *out << ' '; print(v[i]); } }
-  template<typename T> inline void printlnVec(const vec<T>& v) { printVec(v); *out << '\n'; }
   template<typename...Ts> inline void operator() (const Ts&... args) { println(args...); }
-  template<typename T> inline void operator() (const vec<T>& v) { printlnVec(v); }
+  void setPrecision(int p) { *out << std::setprecision(p) << std::fixed; }
 };
 
 template<typename T> vec2d<T> newVec2d(int n, int m, const T& init) {
@@ -72,8 +77,7 @@ template<typename T> vec3d<T> newVec3d(int n, int m, int k, const T& init) {
 }
 
 void panic() {
-  int z = 0;
-  z = 1 / z;
+  throw 42;
 }
 
 template<typename T> bool rmn(T& value, const T& candidate) {
@@ -98,139 +102,143 @@ int main() {
   return 0;
 }
 
-const double eps = 1e-8;
-const int RED = 6;
+using ld = long double;
+const ld eps = 1e-10;
 
-double sqr(double x) {
-  return x * x;
+ld dist2(ld x1, ld y1, ld x2, ld y2) {
+  return (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
 }
 
-struct Signal {
-  int cell;
-  int level;
-  Signal(int cell, int level): cell(cell), level(level) {}
-};
+bool intersect(Output& out, ld x1, ld y1, ld x2, ld y2, ld tmin, ld xc, ld yc, ld rc2, ld& t) {
+  // x1 + t * dx, y1 + t * dy
+  // dx * (xc - x1 - tnorm * dx) + dy * (yc - y1 - tnorm * dy) = 0
+  // dt is between norm and intersection
+  // dt^2 * (dx * dx + dy * dy) = r * r - d * d
+  ld dx = x2 - x1;
+  ld dy = y2 - y1;
+  ld dd = dx * dx + dy * dy;
+  ld tnorm = (dx * (xc - x1) + dy * (yc - y1)) / dd;
+  ld d2 = dist2(xc, yc, x1 + dx * tnorm, y1 + dy * tnorm);
+  if (d2 > rc2 - eps) {
+    // out ("intersect. false1", x1, y1, x2, y2, tmin, xc, yc, rc2);
+    return false;
+  }
+  ld dt = sqrtl((rc2 - d2) / dd);
+  t = (tnorm - dt > tmin + eps) ? tnorm - dt : tnorm + dt;
+  if (t < tmin + eps || t > 1 - eps) {
+    // out ("intersect. false2", x1, y1, x2, y2, tmin, xc, yc, rc2, "t=", t);
+    return false;
+  }
+  // out ("intersect. true", x1, y1, x2, y2, tmin, xc, yc, rc2, "d2=", d2, "t=", t);
+  return true;
+}
 
 void solve(Input& in, Output& out) {
+  vec<string> signals({ "VIOLET", "INDIGO", "BLUE", "GREEN", "YELLOW", "ORANGE", "RED" });
+  const int RED = 6;
+  out.setPrecision(3);
+
   int n = in.ni();
-  vec<int> xc(n), yc(n), rc(n);
-  vec2d<double> rs = newVec2d(n, RED, 0.0);
+  vec<i64> xc(n);
+  vec<i64> yc(n);
+  vec<i64> rc(n);
+  auto rs2 = newVec2d(n, RED, (ld)0);
   vec<string> sc(n);
   for (int i = 0; i < n; i++) {
     xc[i] = in.ni();
     yc[i] = in.ni();
     rc[i] = in.ni();
     sc[i] = in.ns();
-    for (int j = 0; j < RED; j++)
-      rs[i][j] = rc[i] * pow(10.0, 0.2 * j);
+    rs2[i][0] = rc[i] * rc[i];
+    for (int j = 1; j < RED; j++)
+      rs2[i][j] = rc[i] * rc[i] * powl((ld) 10.0, (ld) 0.4 * j);
   }
+  // out ("rs2", rs2);
 
-  auto get_signal = [&] (double x, double y, int cell) {
-    double dist = sqrt(sqr(x - xc[cell]) + sqr(y - yc[cell]));
-    int level = 0;
-    while (level < RED && dist > rs[cell][level] - eps)
-      level++;
-    return make_pair(dist / rc[cell], Signal(cell, level));
-  };
-
-  auto choose = [&] (double x, double y) {
-    pair<double, Signal> best(1e100, Signal(0, 100));
-    for (int cell = 0; cell < n; cell++) {
-      auto s = get_signal(x, y, cell);
-      if (s.first < best.first - eps || (s.first < best.first + eps && sc[s.second.cell] < sc[best.second.cell]))
-        best = s;
+  auto find_best = [&](ld x, ld y, ld towards_x, ld towards_y) {
+    int best = -1;
+    ld best_power = 0;
+    for (int i = 0; i < n; i++) {
+      ld d2 = dist2(xc[i], yc[i], x, y);
+      ld inv_power = max((ld) 1, d2 / (rc[i] * rc[i]));
+      // out.setPrecision(15);
+      // out ("find_best", x, y, i, "d2=", d2, "inv_power=", inv_power);
+      // out.setPrecision(3);
+      if (best == -1 || (inv_power < best_power - eps) || (inv_power < best_power + eps && sc[i] < sc[best])) {
+        best = i;
+        best_power = inv_power;
+      }
     }
-    return best.second;
+    // out ("find_best", x, y, "best=", best, "best_power=", best_power);
+    ld d2 = dist2(xc[best], yc[best], towards_x, towards_y);
+    for (int level = 0; level < RED; level++) {
+      if (d2 < rs2[best][level])
+        return make_pair(best, level);
+    }
+    return make_pair(best, RED);
   };
 
-  auto find_t = [&] (double x1, double y1, double x2, double y2, double x, double y) {
-    return abs(x1 - x2) > abs(y1 - y2) ? (x - x1) / (x2 - x1) : (y - y1) / (y2 - y1);
-  };
+  // // out ("rs2", rs2);
 
-  auto find_change = [&] (double x1, double y1, double x2, double y2, int cell, int level, double min_t) -> double {
-    double a = y1 - y2;
-    double b = x2 - x1;
-    double c = -(a * x1 + b * y1);
-    double ct = -(a * xc[cell] + b * yc[cell] + c) / (a * a + b * b);
-    double cx = xc[cell] + a * ct;
-    double cy = yc[cell] + b * ct;
-    double dr2 = rs[cell][level] * rs[cell][level] - ct * ct * (a * a + b * b);
-    if (dr2 < eps)
-      return -2.0;
-    double dr = sqrt(dr2);
-    double t0 = find_t(x1, y1, x2, y2, cx, cy);
-    double d = sqrt(sqr(x1 - x2) + sqr(y1 - y2));
-    double t1 = t0 - dr / d;
-    double t2 = t0 + dr / d;
-    if (t1 > min_t + eps && t1 < 1)
-      return t1;
-    if (t2 > min_t + eps && t2 < 1)
-      return t2;
-    return -2.0;
-  };
+  int cur = -1;
+  int level = -1;
 
-  vec<string> levels({ "VIOLET", "INDIGO", "BLUE", "GREEN", "YELLOW", "ORANGE", "RED" });
-  Signal current(0, 100);
+  int m = in.ni();
+  for (int index = 0; index < m; index++) {
+    i64 xs = in.ni();
+    i64 ys = in.ni();
+    i64 xe = in.ni();
+    i64 ye = in.ni();
 
-  int moves = in.ni();
-  for (int move = 0; move < moves; move++) {
-    int xs = in.ni();
-    int ys = in.ni();
-    int xe = in.ni();
-    int ye = in.ni();
-
-    if (move == 0) {
-      current = choose(xs, ys);
-      out("Power on. CELL_ID:" + sc[current.cell] + ", SIGNAL_LEVEL:" + levels[current.level]);
+    if (index == 0) {
+      tie(cur, level) = find_best(xs, ys, xs, ys);
+      out("Power on. CELL_ID:" + sc[cur] + ", SIGNAL_LEVEL:" + signals[level]);
     }
 
-    double t = 0;
+    ld t = 0;
+    bool must_find_not_red = false;
     while (t < 1 - eps) {
-      double x = xs + (xe - xs) * t;
-      double y = ys + (ye - ys) * t;
-      if (current.level < RED) {
-        double t1 = find_change(xs, ys, xe, ye, current.cell, current.level, t);
-        double t2 = current.level == 0 ? -2 : find_change(xs, ys, xe, ye, current.cell, current.level - 1, t);
-        if (t1 < -1 && t2 < -1) {
+      if (level < RED) {
+        ld it1, it2;
+        bool has1, has2;
+        has1 = intersect(out, xs, ys, xe, ye, t, xc[cur], yc[cur], rs2[cur][level], it1);
+        has2 = level > 0 && intersect(out, xs, ys, xe, ye, t, xc[cur], yc[cur], rs2[cur][level-1], it2);
+        if (has1 && (!has2 || it1 < it2)) {
+          t = it1;
+          level++;
+          out("Signal changed. SIGNAL_LEVEL:" + signals[level]);
+        } else if (has2) {
+          t = it2;
+          level--;
+          out("Signal changed. SIGNAL_LEVEL:" + signals[level]);
+        } else {
           t = 1;
-        } else if (t2 < -1 || (t1 > -1 && t1 < t2)) {
-          current.level++;
-          t = t1;
-          out("Signal changed. SIGNAL_LEVEL:" + levels[current.level]);
-        } else {
-          current.level--;
-          t = t2;
-          out("Signal changed. SIGNAL_LEVEL:" + levels[current.level]);
         }
+        must_find_not_red = false;
       } else {
-        Signal s = choose(x, y);
-        if (s.level < RED && s.cell != current.cell) {
-          current = s;
-          out("Cell changed. CELL_ID:" + sc[current.cell] + ", SIGNAL_LEVEL:" + levels[current.level]);
-        } else {
-          double t_next = find_change(xs, ys, xe, ye, current.cell, RED - 1, t);
-          int cell_next = current.cell;
-          for (int cell = 0; cell < n; cell++) {
-            double t_cell = find_change(xs, ys, xe, ye, cell, RED - 1, t);
-            if (t_cell < -1)
-              continue;
-            if (t_next < -1 || t_cell < t_next - eps || (t_cell < t_next + eps && sc[cell] < sc[cell_next])) {
-              t_next = t_cell;
-              cell_next = cell;
-            }
-          }
-          if (t_next < -1) {
-            t = 1;
-          } else if (cell_next == current.cell) {
-            current.level--;
-            t = t_next;
-            out("Signal changed. SIGNAL_LEVEL:" + levels[current.level]);
+        auto p = find_best(xs + (xe - xs) * t, ys + (ye - ys) * t, xs + (xe - xs) * (t + eps), ys + (ye - ys) * (t + eps));
+        if (p.first != -1 && p.second == RED && must_find_not_red)
+          panic();
+        if (p.first != -1 && p.second != RED) {
+          if (cur == p.first) {
+            cur = p.first;
+            level = p.second;
+            out("Signal changed. SIGNAL_LEVEL:" + signals[level]);
           } else {
-            t = t_next;
-            current.cell = cell_next;
-            current.level = RED - 1;
-            out("Cell changed. CELL_ID:" + sc[current.cell] + ", SIGNAL_LEVEL:" + levels[current.level]);
+            cur = p.first;
+            level = p.second;
+            out("Cell changed. CELL_ID:" + sc[cur] + ", SIGNAL_LEVEL:" + signals[level]);
           }
+          must_find_not_red = false;
+        } else {
+          ld mint = 1;
+          for (int i = 0; i < n; i++) {
+            ld it;
+            if (intersect(out, xs, ys, xe, ye, t, xc[i], yc[i], rs2[i][RED - 1], it))
+              mint = min(mint, it);
+          }
+          t = mint;
+          must_find_not_red = true;
         }
       }
     }
